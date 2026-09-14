@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resolve — Autonomous Customer Resolution Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --white:#FFFFFF;
+    --lavender:#F3EEFF;
+    --light-purple:#E5D9FF;
+    --primary:#7C5CFC;
+    --deep:#5B3FC4;
+    --dark:#18151F;
+    --gray:#6F6A7A;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body,#root{height:100%;}
+  body{
+    margin:0;
+    background:var(--white);
+    color:var(--dark);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.heading{
+    font-family:'Manrope',system-ui,sans-serif;
+    font-weight:700;
+    color:var(--dark);
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  a, button{font-family:inherit;}
+  button{cursor:pointer;border:none;background:none;}
+  input{font-family:inherit;}
+
+  /* ---------- Focus visibility (accessibility) ---------- */
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--primary);
+    outline-offset:2px;
+    border-radius:6px;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn-primary{
+    background:var(--deep);
+    color:var(--white);
+    font-weight:600;
+    font-size:14px;
+    padding:11px 20px;
+    border-radius:var(--radius);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:background 120ms ease;
+  }
+  .btn-primary:hover{background:#4c34a8;}
+  .btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn-secondary{
+    background:var(--white);
+    color:var(--deep);
+    font-weight:600;
+    font-size:14px;
+    padding:10px 18px;
+    border-radius:var(--radius);
+    border:1.5px solid var(--light-purple);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:border-color 120ms ease, background 120ms ease;
+  }
+  .btn-secondary:hover{border-color:var(--primary);background:var(--lavender);}
+  .link{
+    color:var(--deep);
+    font-weight:600;
+    text-decoration:none;
+    border-bottom:1.5px solid transparent;
+  }
+  .link:hover{border-bottom-color:var(--deep);}
+
+  .field-label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    color:var(--dark);
+    margin-bottom:6px;
+  }
+  .field-input{
+    width:100%;
+    padding:11px 14px;
+    font-size:14px;
+    color:var(--dark);
+    border:1.5px solid var(--light-purple);
+    border-radius:var(--radius);
+    background:var(--white);
+    transition:border-color 120ms ease;
+  }
+  .field-input::placeholder{color:var(--gray);}
+  .field-input:focus{border-color:var(--primary);outline:none;box-shadow:0 0 0 3px rgba(124,92,252,0.15);}
+
+  .card{
+    background:var(--white);
+    border:1px solid var(--light-purple);
+    border-radius:12px;
+  }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:999px;
+  }
+  .badge-resolved{background:#EAF7EE;color:#1F7A3D;}
+  .badge-escalated{background:#FCEAEA;color:#B23A3A;}
+  .badge-progress{background:var(--lavender);color:var(--deep);}
+  .badge-open{background:#F1F1F4;color:var(--gray);}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--light-purple);border-radius:8px;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback } = React;
+
+/* ============================= ICONS ============================= */
+/* Every status icon pairs with a text label elsewhere - color is never
+   the only signal (WCAG 1.4.1). */
+const Icon = {
+  Check: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>,
+  Alert: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+  Refresh: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>,
+  Clock: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>,
+  Search: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>,
+  Plus: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>,
+  LogOut: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>,
+  Box: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg>,
+  Target: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.6" fill={p.color||"currentColor"}/></svg>,
+  Database: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>,
+  Bolt: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>,
+  Flag: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V4a1 1 0 011.4-.9l1.6.7a4 4 0 003.4 0 4 4 0 013.4 0l1.6.8a1 1 0 010 1.8l-1.6.8a4 4 0 01-3.4 0 4 4 0 00-3.4 0L4 8"/></svg>,
+  Server: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke={p.color||"currentColor"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01"/><path d="M7 16.5h.01"/></svg>,
+};
+
+const STEP_META = {
+  goal:      { icon: Icon.Target,  label: "Goal" },
+  retrieve:  { icon: Icon.Database,label: "Retrieve" },
+  decide:    { icon: Icon.Bolt,    label: "Decide" },
+  act:       { icon: Icon.Box,     label: "Act" },
+  verify:    { icon: Icon.Check,   label: "Verify" },
+  adapt:     { icon: Icon.Refresh, label: "Adapt" },
+  escalate:  { icon: Icon.Flag,    label: "Escalate" },
+  outcome:   { icon: Icon.Check,   label: "Outcome" },
+};
+
+function StatusBadge({ status }) {
+  const map = {
+    resolved:    { cls: "badge-resolved",  Icon: Icon.Check,   text: "Resolved" },
+    escalated:   { cls: "badge-escalated", Icon: Icon.Alert,   text: "Escalated" },
+    in_progress: { cls: "badge-progress",  Icon: Icon.Refresh, text: "In progress" },
+    open:        { cls: "badge-open",      Icon: Icon.Clock,   text: "Open" },
+  };
+  const m = map[status] || map.open;
+  return (
+    <span className={`badge ${m.cls}`}>
+      <m.Icon size={13} />
+      {m.text}
+    </span>
+  );
+}
+
+function ErrorBanner({ message }) {
+  if (!message) return null;
+  return (
+    <div role="alert" style={{
+      display: "flex", gap: 10, alignItems: "flex-start",
+      background: "#FCEAEA", border: "1px solid #E7B4B4", borderRadius: 10,
+      padding: "12px 14px", color: "#B23A3A", fontSize: 13.5, fontWeight: 600, marginBottom: 16,
+    }}>
+      <Icon.Alert size={16} />
+      <span style={{ lineHeight: 1.5 }}>{message}</span>
+    </div>
+  );
+}
+
+/* ============================= API CLIENT ============================= */
+/* Thin fetch wrapper against the live FastAPI backend. No mock data -
+   every screen reflects what the server actually returned. Token lives
+   only in React state for the session (artifacts can't use browser
+   storage) - in a deployed build, swap this for an httpOnly cookie. */
+function makeApi(apiBase, token) {
+  async function call(path, options = {}) {
+    let res;
+    try {
+      res = await fetch(apiBase.replace(/\/+$/, "") + path, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {}),
+        },
+      });
+    } catch (e) {
+      throw new Error(`Could not reach ${apiBase} — is the backend running?`);
+    }
+    if (!res.ok) {
+      let detail = `Request failed (${res.status})`;
+      try { detail = (await res.json()).detail || detail; } catch (e) {}
+      throw new Error(detail);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  }
+  return {
+    login: (email, password) => call("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    register: (full_name, email, password) => call("/auth/register", { method: "POST", body: JSON.stringify({ full_name, email, password }) }),
+    me: () => call("/auth/me"),
+    listCustomers: () => call("/customers"),
+    customerOrders: (id) => call(`/customers/${id}/orders`),
+    getOrder: (id) => call(`/orders/${id}`),
+    listCases: () => call("/cases"),
+    createCase: (payload) => call("/cases", { method: "POST", body: JSON.stringify(payload) }),
+    getCase: (id) => call(`/cases/${id}`),
+    resolveCase: (id) => call(`/cases/${id}/resolve`, { method: "POST" }),
+  };
+}
+
+/* ============================= AUTH SCREEN ============================= */
+function AuthHero() {
+  const steps = ["Goal", "Decide", "Act", "Verify", "Outcome"];
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive((a) => (a + 1) % steps.length), 1100);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", padding: "56px 48px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--deep)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon.Bolt size={16} color="#fff" />
+        </div>
+        <span className="heading" style={{ fontSize: 18 }}>Resolve</span>
+      </div>
+
+      <div>
+        <h1 style={{ fontSize: 34, lineHeight: 1.2, maxWidth: 380 }}>An agent that finishes the ticket, not just answers it.</h1>
+        <p style={{ color: "var(--gray)", fontSize: 15, marginTop: 14, maxWidth: 360, lineHeight: 1.6 }}>
+          Every case moves through the same accountable loop: understand the goal, pull real evidence, act on it, verify the result, and adapt the moment something blocks the plan.
+        </p>
+
+        <div style={{ marginTop: 34, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {steps.map((s, i) => (
+            <div key={s} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 14px", borderRadius: 999,
+              background: i === active ? "var(--deep)" : "var(--white)",
+              border: `1.5px solid ${i === active ? "var(--deep)" : "var(--light-purple)"}`,
+              color: i === active ? "#fff" : "var(--dark)",
+              fontSize: 13, fontWeight: 600,
+              transition: "all 320ms ease",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: 99, background: i === active ? "#fff" : "var(--primary)" }} />
+              {s}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p style={{ color: "var(--gray)", fontSize: 12.5 }}>Built for Tech Zephyr 4.0 — Agentic AI Hackathon, IIT Bhubaneswar</p>
+    </div>
+  );
+}
+
+function AuthPage({ apiBase, setApiBase, onAuthed }) {
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ full_name: "", email: "demo@resolveai.app", password: "Demo1234!" });
+  const [showServerField, setShowServerField] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  function update(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    if (!form.email || !form.password || (mode === "register" && !form.full_name)) {
+      setError("Please fill in all fields.");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setLoading(true);
+    const api = makeApi(apiBase, null);
+    try {
+      const result = mode === "login"
+        ? await api.login(form.email, form.password)
+        : await api.register(form.full_name, form.email, form.password);
+      onAuthed(result.access_token, result.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.1fr 1fr" }}>
+      <div style={{ background: "var(--lavender)", borderRight: "1px solid var(--light-purple)" }}>
+        <AuthHero />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <form onSubmit={submit} style={{ width: "100%", maxWidth: 380 }}>
+          <h2 style={{ fontSize: 26 }}>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+          <p style={{ color: "var(--gray)", fontSize: 14, marginTop: 8, marginBottom: 26 }}>
+            {mode === "login" ? "Sign in to review and run resolution cases." : "Set up operator access to the resolution console."}
+          </p>
+
+          <ErrorBanner message={error} />
+
+          {mode === "register" && (
+            <div style={{ marginBottom: 18 }}>
+              <label className="field-label" htmlFor="full_name">Full name</label>
+              <input id="full_name" className="field-input" value={form.full_name}
+                onChange={(e) => update("full_name", e.target.value)} placeholder="Asha Rao" />
+            </div>
+          )}
+
+          <div style={{ marginBottom: 18 }}>
+            <label className="field-label" htmlFor="email">Email</label>
+            <input id="email" type="email" className="field-input" value={form.email}
+              onChange={(e) => update("email", e.target.value)} placeholder="you@company.com" />
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label className="field-label" htmlFor="password">Password</label>
+            <input id="password" type="password" className="field-input" value={form.password}
+              onChange={(e) => update("password", e.target.value)} placeholder="At least 8 characters" />
+          </div>
+
+          <button type="submit" className="btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 16 }} disabled={loading}>
+            {loading ? "Connecting…" : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+
+          <p style={{ fontSize: 13.5, color: "var(--gray)", marginTop: 20, textAlign: "center" }}>
+            {mode === "login" ? "New here? " : "Already have an account? "}
+            <button type="button" className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
+              {mode === "login" ? "Create an account" : "Sign in"}
+            </button>
+          </p>
+
+          <div style={{ marginTop: 28, borderTop: "1px solid var(--light-purple)", paddingTop: 16 }}>
+            <button type="button" onClick={() => setShowServerField((s) => !s)}
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--gray)", fontWeight: 600 }}>
+              <Icon.Server size={13} /> Backend: {apiBase}
+            </button>
+            {showServerField && (
+              <input className="field-input" style={{ marginTop: 10, fontSize: 13 }} value={apiBase}
+                onChange={(e) => setApiBase(e.target.value)} placeholder="http://localhost:8000" />
+            )}
+            <p style={{ fontSize: 12, color: "var(--gray)", marginTop: 10 }}>
+              Demo login: <code style={{ background: "var(--lavender)", padding: "2px 6px", borderRadius: 5 }}>demo@resolveai.app</code> / <code style={{ background: "var(--lavender)", padding: "2px 6px", borderRadius: 5 }}>Demo1234!</code> — run <code style={{ background: "var(--lavender)", padding: "2px 6px", borderRadius: 5 }}>python seed_data.py</code> first.
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ============================= DASHBOARD ============================= */
+function TraceStep({ event, isLast }) {
+  const meta = STEP_META[event.step] || { icon: Icon.Box, label: event.step };
+  const failed = event.success === false;
+  const IconComp = failed ? Icon.Alert : meta.icon;
+  const dotColor = failed ? "#B23A3A" : "var(--deep)";
+
+  return (
+    <div style={{ display: "flex", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 32 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 999,
+          background: failed ? "#FCEAEA" : "var(--lavender)",
+          border: `1.5px solid ${failed ? "#E7B4B4" : "var(--light-purple)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <IconComp size={15} color={dotColor} />
+        </div>
+        {!isLast && <div style={{ width: 2, flex: 1, background: "var(--light-purple)", marginTop: 4, marginBottom: 4, minHeight: 22 }} />}
+      </div>
+      <div style={{ paddingBottom: 26 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{meta.label}</span>
+          {failed && (
+            <span className="badge badge-escalated" style={{ padding: "2px 8px", fontSize: 11 }}>
+              <Icon.Alert size={11} /> Blocked
+            </span>
+          )}
+        </div>
+        <p style={{ fontSize: 13.5, color: "var(--dark)", marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>{event.summary}</p>
+      </div>
+    </div>
+  );
+}
+
+function NewCaseForm({ api, customers, onCreated, onCancel, setGlobalError }) {
+  const [customerId, setCustomerId] = useState(customers[0]?.id || "");
+  const [orders, setOrders] = useState([]);
+  const [orderId, setOrderId] = useState("");
+  const [goal, setGoal] = useState("");
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!customerId) return;
+    setLoadingOrders(true);
+    api.customerOrders(customerId)
+      .then((o) => { setOrders(o); setOrderId(o[0]?.id || ""); })
+      .catch((e) => setGlobalError(e.message))
+      .finally(() => setLoadingOrders(false));
+  }, [customerId]);
+
+  async function submit() {
+    setSubmitting(true);
+    try {
+      const created = await api.createCase({ customer_id: customerId, order_id: orderId, goal_text: goal });
+      onCreated(created);
+    } catch (e) {
+      setGlobalError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 20, marginBottom: 18 }}>
+      <h3 style={{ fontSize: 15, marginBottom: 16 }}>New case</h3>
+      <div style={{ marginBottom: 14 }}>
+        <label className="field-label">Customer</label>
+        <select className="field-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.tier})</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <label className="field-label">Order</label>
+        <select className="field-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} disabled={loadingOrders}>
+          {loadingOrders && <option>Loading…</option>}
+          {orders.map((o) => <option key={o.id} value={o.id}>{o.product_name} — ${o.price.toFixed(2)}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label className="field-label">Customer's goal</label>
+        <input className="field-input" value={goal} onChange={(e) => setGoal(e.target.value)}
+          placeholder="e.g. The item arrived defective, please replace it" />
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="btn-primary" disabled={!goal.trim() || !orderId || submitting} onClick={submit}>
+          <Icon.Plus size={14} /> {submitting ? "Creating…" : "Create case"}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function CaseDetail({ c, customer, order, onResolve, resolving }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <div>
+          <h2 style={{ fontSize: 20 }}>{customer?.name || "Loading…"}</h2>
+          <p style={{ color: "var(--gray)", fontSize: 13.5, marginTop: 4 }}>
+            {order ? `${order.product_name} · $${order.price.toFixed(2)}` : "Loading order…"}
+          </p>
+        </div>
+        <StatusBadge status={c.status} />
+      </div>
+
+      <div className="card" style={{ padding: 16, marginTop: 18, marginBottom: 24 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gray)" }}>CUSTOMER GOAL</span>
+        <p style={{ fontSize: 14.5, marginTop: 6, marginBottom: 0 }}>{c.goal_text}</p>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+        <h3 style={{ fontSize: 15 }}>Agent trace</h3>
+        {c.status !== "resolved" && (
+          <button className="btn-secondary" onClick={onResolve} disabled={resolving}>
+            <Icon.Refresh size={14} /> {resolving ? "Running…" : "Run agent"}
+          </button>
+        )}
+      </div>
+
+      {(!c.events || c.events.length === 0) ? (
+        <div style={{ color: "var(--gray)", fontSize: 13.5, padding: "20px 0" }}>
+          Not run yet. Click "Run agent" to call <code style={{ background: "var(--lavender)", padding: "2px 6px", borderRadius: 5 }}>POST /cases/{c.id}/resolve</code> on the live backend.
+        </div>
+      ) : (
+        <div>{c.events.map((e, i) => <TraceStep key={e.id || i} event={e} isLast={i === c.events.length - 1} />)}</div>
+      )}
+    </div>
+  );
+}
+
+function Dashboard({ apiBase, token, user, onLogout }) {
+  const api = React.useMemo(() => makeApi(apiBase, token), [apiBase, token]);
+
+  const [customers, setCustomers] = useState([]);
+  const [cases, setCases] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [selectedCase, setSelectedCase] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [query, setQuery] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const refreshCases = useCallback(() => {
+    return api.listCases().then(setCases).catch((e) => setError(e.message));
+  }, [api]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([api.listCustomers(), api.listCases()])
+      .then(([custs, cs]) => {
+        setCustomers(custs);
+        setCases(cs);
+        if (cs.length) setSelectedId(cs[0].id);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [api]);
+
+  useEffect(() => {
+    if (!selectedId) { setSelectedCase(null); setSelectedOrder(null); return; }
+    api.getCase(selectedId).then((c) => {
+      setSelectedCase(c);
+      return api.getOrder(c.order_id);
+    }).then(setSelectedOrder).catch((e) => setError(e.message));
+  }, [selectedId, api]);
+
+  function customerOf(c) { return customers.find((cu) => cu.id === c.customer_id); }
+
+  const filtered = cases.filter((c) => {
+    const cust = customerOf(c);
+    const q = query.toLowerCase();
+    return !q || c.goal_text.toLowerCase().includes(q) || (cust && cust.name.toLowerCase().includes(q));
+  });
+
+  function onCreated(created) {
+    setCases((cs) => [created, ...cs]);
+    setSelectedId(created.id);
+    setShowNew(false);
+  }
+
+  async function resolveCase() {
+    if (!selectedCase) return;
+    setResolving(true);
+    setError("");
+    try {
+      const updated = await api.resolveCase(selectedCase.id);
+      setSelectedCase(updated);
+      refreshCases();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", height: "100vh" }}>
+      <div style={{ background: "var(--lavender)", borderRight: "1px solid var(--light-purple)", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "22px 20px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 7, background: "var(--deep)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon.Bolt size={13} color="#fff" />
+            </div>
+            <span className="heading" style={{ fontSize: 16 }}>Resolve</span>
+          </div>
+        </div>
+
+        <div style={{ padding: "0 16px 14px" }}>
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 12, top: 11, color: "var(--gray)" }}><Icon.Search size={15} /></span>
+            <input className="field-input" style={{ paddingLeft: 34 }} placeholder="Search cases"
+              value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 12px" }}>
+          {loading && <p style={{ color: "var(--gray)", fontSize: 13, padding: "10px 8px" }}>Loading cases…</p>}
+          {!loading && filtered.length === 0 && (
+            <p style={{ color: "var(--gray)", fontSize: 13, padding: "10px 8px" }}>No cases yet — create one below.</p>
+          )}
+          {filtered.map((c) => {
+            const cust = customerOf(c);
+            const active = c.id === selectedId;
+            return (
+              <button key={c.id} onClick={() => setSelectedId(c.id)}
+                style={{
+                  width: "100%", textAlign: "left", padding: "12px 14px", borderRadius: 10,
+                  marginBottom: 4, background: active ? "var(--white)" : "transparent",
+                  border: active ? "1.5px solid var(--light-purple)" : "1.5px solid transparent",
+                  borderLeft: active ? "3.5px solid var(--primary)" : "3.5px solid transparent",
+                }}>
+                <span style={{ fontWeight: 700, fontSize: 13.5 }}>{cust?.name || c.customer_id}</span>
+                <p style={{ fontSize: 12.5, color: "var(--gray)", margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.goal_text}
+                </p>
+                <StatusBadge status={c.status} />
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: 16, borderTop: "1px solid var(--light-purple)" }}>
+          <button className="btn-primary" style={{ width: "100%", justifyContent: "center", marginBottom: 10 }} onClick={() => setShowNew(true)}>
+            <Icon.Plus size={14} /> New case
+          </button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{user.full_name}</div>
+              <div style={{ fontSize: 11.5, color: "var(--gray)" }}>{user.email}</div>
+            </div>
+            <button onClick={onLogout} aria-label="Log out" title="Log out" style={{ color: "var(--gray)", padding: 6 }}>
+              <Icon.LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ overflowY: "auto", padding: "36px 48px" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <ErrorBanner message={error} />
+          {showNew && (
+            <NewCaseForm api={api} customers={customers} onCreated={onCreated}
+              onCancel={() => setShowNew(false)} setGlobalError={setError} />
+          )}
+          {selectedCase ? (
+            <CaseDetail c={selectedCase} customer={customerOf(selectedCase)} order={selectedOrder}
+              onResolve={resolveCase} resolving={resolving} />
+          ) : !loading && (
+            <p style={{ color: "var(--gray)" }}>Select a case from the list, or create a new one.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================= ROOT ============================= */
+function App() {
+  const [apiBase, setApiBase] = useState("http://localhost:8000");
+  const [session, setSession] = useState(null); // { token, user }
+
+  if (!session) {
+    return <AuthPage apiBase={apiBase} setApiBase={setApiBase}
+      onAuthed={(token, user) => setSession({ token, user })} />;
+  }
+  return <Dashboard apiBase={apiBase} token={session.token} user={session.user}
+    onLogout={() => setSession(null)} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
