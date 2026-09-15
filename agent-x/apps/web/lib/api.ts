@@ -1,6 +1,22 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== ''
-  ? process.env.NEXT_PUBLIC_API_URL
-  : '/api';
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // If not running on local development (e.g. vercel.app), ALWAYS use relative '/api'
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return '/api';
+    }
+  }
+
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    if (typeof window !== 'undefined' && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+      return '/api';
+    }
+    return envUrl;
+  }
+
+  return '/api';
+}
 
 export function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
@@ -48,14 +64,16 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const baseUrl = getApiBaseUrl();
   let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  if (API_BASE_URL === '/api' && cleanEndpoint.startsWith('/api/')) {
+
+  if (baseUrl === '/api' && cleanEndpoint.startsWith('/api/')) {
     cleanEndpoint = cleanEndpoint.substring(4);
   }
 
-  const targetUrl = API_BASE_URL.endsWith('/')
-    ? `${API_BASE_URL.slice(0, -1)}${cleanEndpoint}`
-    : `${API_BASE_URL}${cleanEndpoint}`;
+  const targetUrl = baseUrl.endsWith('/')
+    ? `${baseUrl.slice(0, -1)}${cleanEndpoint}`
+    : `${baseUrl}${cleanEndpoint}`;
 
   const response = await fetch(targetUrl, {
     ...options,
