@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { verifyUserToken } from '@/lib/auth-server';
 import { ensureDatabaseSeeded } from '@/lib/seed';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     await ensureDatabaseSeeded();
