@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== ''
+  ? process.env.NEXT_PUBLIC_API_URL
+  : '/api';
 
 export function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
@@ -46,7 +48,16 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (API_BASE_URL === '/api' && cleanEndpoint.startsWith('/api/')) {
+    cleanEndpoint = cleanEndpoint.substring(4);
+  }
+
+  const targetUrl = API_BASE_URL.endsWith('/')
+    ? `${API_BASE_URL.slice(0, -1)}${cleanEndpoint}`
+    : `${API_BASE_URL}${cleanEndpoint}`;
+
+  const response = await fetch(targetUrl, {
     ...options,
     headers,
   });

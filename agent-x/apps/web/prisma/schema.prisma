@@ -1,0 +1,79 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String        @id @default(uuid())
+  name            String
+  email           String        @unique
+  passwordHash    String
+  role            String        // customer, worker, admin
+  emailVerified   Boolean       @default(true)
+  accountStatus   String        @default("active") // active, pending_approval, rejected
+  avatarUrl       String?
+  phone           String?
+  savedAddress    String?
+  shopName        String?
+  skills          String?       // JSON array string e.g. ["HVAC", "Plumbing"]
+  availability    String?       // available, on_job, off_duty
+  permissionLevel String?       // superadmin, standard
+  createdAt       DateTime      @default(now())
+
+  casesAsCustomer Case[]        @relation("CustomerCases")
+  casesAsWorker   Case[]        @relation("WorkerCases")
+}
+
+model Case {
+  id              String      @id @default(cuid())
+  customer        User        @relation("CustomerCases", fields: [customerId], references: [id])
+  customerId      String
+  reason          String
+  description     String
+  photoUrl        String?
+  policyCovered   Boolean?
+  charge          Float?
+  status          String      @default("submitted") // submitted, policy_checked, dispatched, in_progress, resolved
+  assignedWorker  User?       @relation("WorkerCases", fields: [workerId], references: [id])
+  workerId        String?
+  workerNotes     String?
+  workerConfirmed Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  events          CaseEvent[]
+  feedback        Feedback?
+}
+
+model CaseEvent {
+  id        String   @id @default(cuid())
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String
+  label     String
+  createdAt DateTime @default(now())
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String   @unique
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id                    String   @id @default(cuid())
+  action                String   // USER_APPROVED, USER_REJECTED
+  targetUserId          String
+  targetUserEmail       String
+  targetUserRole        String
+  performedByAdminId    String
+  performedByAdminEmail String
+  details               String?
+  createdAt             DateTime @default(now())
+}

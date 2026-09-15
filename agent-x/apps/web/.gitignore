@@ -1,1 +1,6 @@
+# build and dependencies
+node_modules
+.next
 .vercel
+*.db
+*.db-journal
