@@ -1,6 +1,3 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "cd agent-x/apps/web && npm run build",
-  "outputDirectory": "agent-x/apps/web/.next",
-  "installCommand": "cd agent-x/apps/web && npm install"
+  "framework": "nextjs"
 }

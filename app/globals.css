@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default: Dark Navy Brand (Section 12) */
+  --bg-primary: #0B1420;
+  --bg-panel: #131F30;
+  --bg-panel-raised: #1C2C42;
+  --accent-blue: #3B82F6;
+  --accent-blue-bright: #5FA8FF;
+  --text-primary: #F2F5FA;
+  --text-secondary: #9AA7BD;
+  --border: #243449;
+}
+
+[data-theme="cloud-white"] {
+  /* Option A — Cloud White (Section 13) */
+  --bg-primary: #F7F9FC;
+  --bg-panel: #FFFFFF;
+  --bg-panel-raised: #F0F4FA;
+  --accent-blue: #2F6FED;
+  --accent-blue-bright: #5B93F5;
+  --text-primary: #101828;
+  --text-secondary: #475467;
+  --border: #E4E7EC;
+}
+
+[data-theme="soft-ice"] {
+  /* Option B — Soft Ice (Section 13) */
+  --bg-primary: #EEF3FA;
+  --bg-panel: #FFFFFF;
+  --bg-panel-raised: #E3ECFA;
+  --accent-blue: #1D4ED8;
+  --accent-blue-bright: #3B82F6;
+  --text-primary: #0F1E3D;
+  --text-secondary: #5B6B8C;
+  --border: #D6E0F0;
+}
+
+[data-theme="midnight-contrast"] {
+  /* Option C — Midnight-on-white (Section 13) */
+  --bg-primary: #FFFFFF;
+  --bg-panel: #FAFAFA;
+  --bg-panel-raised: #F3F4F6;
+  --accent-blue: #1E4FA3;
+  --accent-blue-bright: #2F6FED;
+  --text-primary: #0B1420;
+  --text-secondary: #3A4759;
+  --border: #DADFE6;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-blue);
+}
